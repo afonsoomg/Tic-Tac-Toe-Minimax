@@ -4,6 +4,8 @@
 #include <random>
 #include <chrono>
 #include <vector>
+#include <string>
+#include <climits>
 
 using namespace sf;
 
@@ -35,40 +37,49 @@ void resetBoard()
     }
 }
 
+bool isEqual(char a, char b, char c)
+{
+    return (a != ' ' && a == b && b == c);
+}
+
+int checkWinner(const std::array<std::array<char,3>,3>& b)
+{
+    bool algumSpot = false;
+    for (int r = 0; r < 3 && !algumSpot; ++r)
+    {
+        for (int c = 0; c < 3; ++c)
+        {
+            if (b[r][c] == ' ')
+            {
+                algumSpot = true;
+                break;
+            }
+        }
+    }
+
+    // linhas
+    for (int r = 0; r < 3; ++r)
+    {
+        if (isEqual(b[r][0], b[r][1], b[r][2])) return (b[r][0] == 'X') ? 1 : 2;
+    }
+
+    // colunas
+    for (int c = 0; c < 3; ++c)
+    {
+        if (isEqual(b[0][c], b[1][c], b[2][c])) return (b[0][c] == 'X') ? 1 : 2;
+    }
+
+    // diagonais
+    if (isEqual(b[0][0], b[1][1], b[2][2])) return (b[0][0] == 'X') ? 1 : 2;
+    if (isEqual(b[2][0], b[1][1], b[0][2])) return (b[2][0] == 'X') ? 1 : 2;
+
+    if (!algumSpot) return 3;
+    return 0;
+}
+
 int checkWinner()
 {
-    // verifica se existe qualquer célula vazia
-    bool algumSpot = false;
-    for (int linha = 0; linha < 3 && !algumSpot; ++linha)
-        for (int coluna = 0; coluna < 3; ++coluna)
-            if (board[linha][coluna] == ' ') { algumSpot = true; break; }
-
-    // verifica linhas
-    for (int linha = 0; linha < 3; ++linha) {
-        if (board[linha][0] != ' ' &&
-            board[linha][0] == board[linha][1] &&
-            board[linha][1] == board[linha][2]) {
-            return (board[linha][0] == 'X') ? 1 : 2;
-        }
-    }
-
-    // verifica colunas
-    for (int coluna = 0; coluna < 3; ++coluna) {
-        if (board[0][coluna] != ' ' &&
-            board[0][coluna] == board[1][coluna] &&
-            board[1][coluna] == board[2][coluna]) {
-            return (board[0][coluna] == 'X') ? 1 : 2;
-        }
-    }
-
-    // verifica diagonais
-    if (board[0][0] != ' ' && board[0][0] == board[1][1] && board[1][1] == board[2][2])
-        return (board[0][0] == 'X') ? 1 : 2;
-    if (board[2][0] != ' ' && board[2][0] == board[1][1] && board[1][1] == board[0][2])
-        return (board[2][0] == 'X') ? 1 : 2;
-
-    if (!algumSpot) return 3; // empate
-    return 0; // sem resultado
+    return checkWinner(board);
 }
 
 void nextMove(char Player)
@@ -83,11 +94,123 @@ void nextMove(char Player)
 
     if (spotsDisponiveis.empty()) return;
 
-    int randomSpot = randomInt(0, static_cast<int>(spotsDisponiveis.size())); // 0 .. size-1
+    int randomSpot = randomInt(0, static_cast<int>(spotsDisponiveis.size()));
     auto pos = spotsDisponiveis[randomSpot];
     board[pos.first][pos.second] = Player;
 }
 
+std::array<int, 4> scores = { 0, 1, -1, 0 }; // nenhum vencedor, X venceu, O venceu, empate
+
+int minimax(std::array<std::array<char, 3>, 3> board, int profundidade, bool isMaximizing, char Player)
+{
+    int result = checkWinner(board);
+    if (result != 0)
+    {
+        if (result == 1) return (Player == 'X') ? 1 : -1;
+        if (result == 2) return (Player == 'O') ? 1 : -1;
+        return 0; // empate
+    }
+
+    if (isMaximizing)
+    {
+        int bestScore = INT_MIN;
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                if (board[r][c] == ' ')
+                {
+                    board[r][c] = Player; // maximizer Player
+                    int score = minimax(board, profundidade + 1, false, Player);
+                    board[r][c] = ' ';
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                    }
+                }
+            }
+        }
+        return bestScore;
+    }
+    else
+    {
+        int bestScore = INT_MAX;
+        char opponent = (Player == 'X') ? 'O' : 'X';
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                if (board[r][c] == ' ')
+                {
+                    board[r][c] = opponent; // minimizer opponent
+                    int score = minimax(board, profundidade + 1, true, Player);
+                    board[r][c] = ' ';
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                    }
+                }
+            }
+        }
+        return bestScore;
+    }
+}
+
+void bestMove(char Player)
+{
+    auto move = std::make_pair(-1, -1);
+
+    if (Player == 'X')
+    {
+        int bestScore = INT_MIN;
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                if (board[r][c] == ' ')
+                {
+                    board[r][c] = Player;
+                    int score = minimax(board, 0, false, Player);
+                    board[r][c] = ' ';
+
+                    if(score > bestScore)
+                    {
+                        bestScore = score;
+                        move = std::make_pair(r, c);
+                    }
+                }
+            }
+        }
+    }
+    else // Player == 'O' -> minimizer
+    {
+        int bestScore = INT_MAX;
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                if (board[r][c] == ' ')
+                {
+                    board[r][c] = Player;
+                    int score = minimax(board, 0, false, Player);
+                    board[r][c] = ' ';
+
+                    if(score < bestScore)
+                    {
+                        bestScore = score;
+                        move = std::make_pair(r, c);
+                    }
+                }
+            }
+        }
+    }
+
+    if (move.first != -1 && move.second != -1)
+    {
+        board[move.first][move.second] = Player;
+    }
+}
 
 int main()
 {
@@ -103,6 +226,11 @@ int main()
     sf::Text text;
     text.setFont(font);
 
+    sf::Text resultDisplay;
+    resultDisplay.setFont(font);
+    resultDisplay.setCharacterSize(28);
+
+
     RenderWindow window(VideoMode(windowWidth, windowHeight), "Jogo da velha");
     window.setVerticalSyncEnabled(true);
 
@@ -114,77 +242,143 @@ int main()
     char currentPlayer = 'X';
 
     bool jogoAcabou = false;
-    sf::Clock aiClock;
-    const sf::Time aiDelay = sf::milliseconds(300); // evita jogadas instantâneas
+    bool useMinimax = true; // toggle for using minimax algorithm
 
-    while (window.isOpen()) {
+    sf::Clock Clock;
+    const sf::Time Delay = sf::milliseconds(300);
+
+    while (window.isOpen()) 
+    {
         Event e;
-        while (window.pollEvent(e)) {
-            if (e.type == Event::Closed) window.close();
-			// Fazer um reset do jogo ao pressionar R para evitar reiniciar o programa
-        }
-
-        // Processa jogadas automáticas enquanto o jogo roda
-        if (!jogoAcabou && aiClock.getElapsedTime() >= aiDelay) {
-            // alterna automaticamente entre X/O
-            nextMove(currentPlayer);
-            aiClock.restart();
-
-            int result = checkWinner();
-            if (result == 1) { std::cout << "X venceu\n"; jogoAcabou = true; }
-            else if (result == 2) { std::cout << "O venceu\n"; jogoAcabou = true; }
-            else if (result == 3) { std::cout << "Empate\n"; jogoAcabou = true; }
-
-            // alterna jogador
-            if (!jogoAcabou) currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
-        }
-
-        window.clear(Color::Black);
-
-        RectangleShape line;
-        // Desenho das linhas Verticais
-        line.setSize(Vector2f(larguraDaLinha, static_cast<float>(windowHeight)));
-        line.setFillColor(Color::White);
-        line.setPosition(Vector2f(w - larguraDaLinha * 0.5f, 0.f));
-        window.draw(line);
-        line.setPosition(Vector2f(2.f * w - larguraDaLinha * 0.5f, 0.f));
-        window.draw(line);
-
-        // Desenhos das linhas Horizontais
-        line.setSize(Vector2f(static_cast<float>(windowWidth), larguraDaLinha));
-        line.setPosition(Vector2f(0.f, h - larguraDaLinha * 0.5f));
-        window.draw(line);
-        line.setPosition(Vector2f(0.f, 2.f * h - larguraDaLinha * 0.5f));
-        window.draw(line);
-
-
-
-        for (int linha = 0; linha < 3; ++linha)
+        while (window.pollEvent(e)) 
         {
-            for (int coluna = 0; coluna < 3; ++coluna)
+            if (e.type == Event::Closed) window.close();
+
+            if (e.type == Event::KeyPressed && e.key.code == Keyboard::R)
             {
-                auto spot = board[linha][coluna];
-                if (spot == ' ') continue;
-          
-                std::string s(1, spot);
-			text.setString(s);
-                text.setCharacterSize(96);
-			text.setStyle(Text::Bold);
-                text.setFillColor(spot == 'X' ? Color::Red : Color::Green);
-
-			FloatRect bounds = text.getLocalBounds();
-                text.setOrigin(bounds.left + bounds.width * 0.5f,
-				       bounds.top + bounds.height * 0.5f);
-
-                float x = coluna * w + w * 0.5f;
-                float y = linha * h + h * 0.5f;
-			text.setPosition(Vector2f(x, y));
-
-                window.draw(text); 
+                resetBoard();
+                jogoAcabou = false;
+                resultDisplay.setString("");
+                currentPlayer = 'X';
+                Clock.restart();
             }
-		}
 
-        window.display();
-    }
-    return 0;
-}
+            if (e.type == Event::KeyPressed && e.key.code == Keyboard::T)
+            {
+                useMinimax = !useMinimax;
+                std::cout << "Minimax toggled: " << (useMinimax ? "ON" : "OFF") << "\n";
+            }
+            
+            if (e.type == Event::MouseButtonPressed && e.mouseButton.button == Mouse::Left)
+            {
+                if (!jogoAcabou && currentPlayer == 'O')
+                {
+                    int mx = e.mouseButton.x;
+                    int my = e.mouseButton.y;
+                    int c = static_cast<int>(mx / w);
+                    int r = static_cast<int>(my / h);
+                    if (r >= 0 && r < 3 && c >= 0 && c < 3 && board[r][c] == ' ')
+                    {
+                        board[r][c] = 'O';
+                        int result = checkWinner();
+                        if (result == 1) { std::cout << "X venceu\n"; jogoAcabou = true; resultDisplay.setString("X venceu\nR para reiniciar"); resultDisplay.setFillColor(Color::Red); }
+                        else if (result == 2) { std::cout << "O venceu\n"; jogoAcabou = true; resultDisplay.setString("O venceu\nR para reiniciar"); resultDisplay.setFillColor(Color::Green); }
+                        else if (result == 3) { std::cout << "Empate\n"; jogoAcabou = true; resultDisplay.setString("Empate\nR para reiniciar"); resultDisplay.setFillColor(Color::Yellow); }
+
+                        if (jogoAcabou)
+                        {
+                            FloatRect bounds = resultDisplay.getLocalBounds();
+                            resultDisplay.setOrigin(bounds.left + bounds.width * 0.5f,
+                                                    bounds.top + bounds.height * 0.5f);
+                            resultDisplay.setPosition(static_cast<float>(windowWidth) * 0.5f,
+                                                      static_cast<float>(windowHeight) * 0.5f);
+                        }
+
+                        if (!jogoAcabou) currentPlayer = 'X';
+                    }
+                }
+            }
+
+        }
+
+        // Processa jogadas automáticas enquanto o jogo roda (AI = X)
+        if (!jogoAcabou && Clock.getElapsedTime() >= Delay) 
+        {
+            if (currentPlayer == 'X')
+            {
+                if (useMinimax) bestMove(currentPlayer);
+                else nextMove(currentPlayer);
+                 Clock.restart();
+
+                 int result = checkWinner();
+                 if (result == 1) { std::cout << "X venceu\n"; jogoAcabou = true; resultDisplay.setString("X venceu\nR para reiniciar"); resultDisplay.setFillColor(Color::Red);} 
+                 else if (result == 2) { std::cout << "O venceu\n"; jogoAcabou = true; resultDisplay.setString("O venceu\nR para reiniciar"); resultDisplay.setFillColor(Color::Green);} 
+                 else if (result == 3) { std::cout << "Empate\n"; jogoAcabou = true; resultDisplay.setString("Empate\nR para reiniciar"); resultDisplay.setFillColor(Color::Yellow);} 
+
+                 if (jogoAcabou)
+                 {
+                     FloatRect bounds = resultDisplay.getLocalBounds();
+                     resultDisplay.setOrigin(bounds.left + bounds.width * 0.5f,
+                                             bounds.top + bounds.height * 0.5f);
+                     resultDisplay.setPosition(static_cast<float>(windowWidth) * 0.5f,
+                                               static_cast<float>(windowHeight) * 0.5f);
+                 }
+
+                 if (!jogoAcabou) currentPlayer = 'O';
+             }
+         }
+
+         window.clear(Color::Black);
+
+         RectangleShape line;
+         // Desenho das linhas Verticais
+         line.setSize(Vector2f(larguraDaLinha, static_cast<float>(windowHeight)));
+         line.setFillColor(Color::White);
+         line.setPosition(Vector2f(w - larguraDaLinha * 0.5f, 0.f));
+         window.draw(line);
+         line.setPosition(Vector2f(2.f * w - larguraDaLinha * 0.5f, 0.f));
+         window.draw(line);
+
+         // Desenhos das linhas Horizontais
+         line.setSize(Vector2f(static_cast<float>(windowWidth), larguraDaLinha));
+         line.setPosition(Vector2f(0.f, h - larguraDaLinha * 0.5f));
+         window.draw(line);
+         line.setPosition(Vector2f(0.f, 2.f * h - larguraDaLinha * 0.5f));
+         window.draw(line);
+
+
+
+         for (int r = 0; r < 3; ++r)
+         {
+             for (int c = 0; c < 3; ++c)
+             {
+                 auto spot = board[r][c];
+                 if (spot == ' ') continue;
+           
+                 std::string s(1, spot);
+                 text.setString(s);
+                 text.setCharacterSize(96);
+                 text.setStyle(Text::Bold);
+                 text.setFillColor(spot == 'X' ? Color::Red : Color::Green);
+
+                 FloatRect bounds = text.getLocalBounds();
+                 text.setOrigin(bounds.left + bounds.width * 0.5f,
+                                bounds.top + bounds.height * 0.5f);
+
+                 float x = c * w + w * 0.5f;
+                 float y = r * h + h * 0.5f;
+                 text.setPosition(Vector2f(x, y));
+
+                 window.draw(text); 
+             }
+         }
+
+         if (jogoAcabou)
+         {
+             window.draw(resultDisplay);
+         }
+
+         window.display();
+     }
+     return 0;
+ }
