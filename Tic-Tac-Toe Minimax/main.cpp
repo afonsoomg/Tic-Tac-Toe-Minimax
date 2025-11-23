@@ -104,18 +104,28 @@ void nextMove(char Player)
 
 std::array<int, 4> scores = { 0, 1, -1, 0 }; // nenhum vencedor, X venceu, O venceu, empate
 
-// minimax com alpha-beta e profundidade
-int minimax(std::array<std::array<char, 3>, 3>& b, int profundidade, bool isXTurn, int alpha, int beta)
+// instrumentation: node counter (no alpha-beta)
+static uint64_t g_nodesVisited = 0;
+static uint64_t g_leafNodes = 0;
+static uint64_t g_internalNodes = 0;
+
+// minimax (pure, no alpha-beta) with depth
+int minimax(std::array<std::array<char, 3>, 3>& b, int profundidade, bool isXTurn)
 {
+    ++g_nodesVisited; // count this node
+
     int result = checkWinner(b);
     if (result != 0)
     {
+        ++g_leafNodes;
         if (result == 1) // X won
             return 10 - profundidade;
         if (result == 2) // O won
             return profundidade - 10;
         return 0; // tie
     }
+
+    ++g_internalNodes;
 
     std::vector<std::pair<int,int>> order = {
         {1,1}, {0,0}, {0,2}, {2,0}, {2,2}, {0,1}, {1,0}, {1,2}, {2,1}
@@ -129,11 +139,9 @@ int minimax(std::array<std::array<char, 3>, 3>& b, int profundidade, bool isXTur
             int r = pos.first, c = pos.second;
             if (b[r][c] != ' ') continue;
             b[r][c] = 'X';
-            int score = minimax(b, profundidade + 1, false, alpha, beta);
+            int score = minimax(b, profundidade + 1, false);
             b[r][c] = ' ';
             if (score > bestScore) bestScore = score;
-            if (score > alpha) alpha = score;
-            if (beta <= alpha) break; // beta cut-off
         }
         return bestScore;
     }
@@ -145,16 +153,41 @@ int minimax(std::array<std::array<char, 3>, 3>& b, int profundidade, bool isXTur
             int r = pos.first, c = pos.second;
             if (b[r][c] != ' ') continue;
             b[r][c] = 'O';
-            int score = minimax(b, profundidade + 1, true, alpha, beta);
+            int score = minimax(b, profundidade + 1, true);
             b[r][c] = ' ';
             if (score < bestScore) bestScore = score;
-            if (score < beta) beta = score;
-            if (beta <= alpha) break; // alpha cut-off
         }
         return bestScore;
     }
 }
 
+// Evaluate current board position for player: print per-candidate score and node counts
+void probePosition(char Player)
+{
+    std::vector<std::pair<int,int>> order = {
+        {1,1}, {0,0}, {0,2}, {2,0}, {2,2}, {0,1}, {1,0}, {1,2}, {2,1}
+    };
+
+    std::cout << "--- Probe position for player " << Player << " ---\n";
+    for (auto pos : order)
+    {
+        int r = pos.first, c = pos.second;
+        if (board[r][c] != ' ') continue;
+        board[r][c] = Player;
+        g_nodesVisited = 0; g_leafNodes = 0; g_internalNodes = 0;
+        int score;
+        if (Player == 'X') score = minimax(board, 1, false);
+        else score = minimax(board, 1, true);
+        uint64_t nodes = g_nodesVisited;
+        uint64_t leaves = g_leafNodes;
+        uint64_t internals = g_internalNodes;
+        board[r][c] = ' ';
+        std::cout << "Candidate ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodes<<" leaf="<<leaves<<" internal="<<internals<<"\n";
+    }
+    std::cout << "--- End probe ---\n";
+}
+
+// bestMove: when calling minimax for candidate, start with depth=1 (one ply already played)
 void bestMove(char Player, bool useMinimax)
 {
     std::vector<std::pair<int,int>> order = {
@@ -177,8 +210,12 @@ void bestMove(char Player, bool useMinimax)
             int r = pos.first, c = pos.second;
             if (board[r][c] != ' ') continue;
             board[r][c] = 'X';
-            int score = minimax(board, 0, false, INT_MIN, INT_MAX);
+            uint64_t nodesBefore = g_nodesVisited; uint64_t leavesBefore = g_leafNodes; uint64_t internBefore = g_internalNodes;
+            int score = minimax(board, 1, false);
+            uint64_t nodesAfter = g_nodesVisited; uint64_t leavesAfter = g_leafNodes; uint64_t internAfter = g_internalNodes;
             board[r][c] = ' ';
+            uint64_t nodesThis = nodesAfter - nodesBefore;
+            std::cout << "Eval candidate X move ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodesThis<<" leaf="<<(leavesAfter-leavesBefore)<<" internal="<<(internAfter-internBefore)<<"\n";
             if (score > bestScore)
             {
                 bestScore = score;
@@ -194,8 +231,12 @@ void bestMove(char Player, bool useMinimax)
             int r = pos.first, c = pos.second;
             if (board[r][c] != ' ') continue;
             board[r][c] = 'O';
-            int score = minimax(board, 0, true, INT_MIN, INT_MAX);
+            uint64_t nodesBefore = g_nodesVisited; uint64_t leavesBefore = g_leafNodes; uint64_t internBefore = g_internalNodes;
+            int score = minimax(board, 1, true);
+            uint64_t nodesAfter = g_nodesVisited; uint64_t leavesAfter = g_leafNodes; uint64_t internAfter = g_internalNodes;
             board[r][c] = ' ';
+            uint64_t nodesThis = nodesAfter - nodesBefore;
+            std::cout << "Eval candidate O move ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodesThis<<" leaf="<<(leavesAfter-leavesBefore)<<" internal="<<(internAfter-internBefore)<<"\n";
             if (score < bestScore)
             {
                 bestScore = score;
@@ -207,6 +248,7 @@ void bestMove(char Player, bool useMinimax)
     if (bestMovePos.first != -1)
     {
         board[bestMovePos.first][bestMovePos.second] = Player;
+        std::cout << "Selected move for " << Player << " -> ("<<bestMovePos.first<<","<<bestMovePos.second<<")\n";
     }
 }
 
@@ -244,12 +286,12 @@ int main()
     bool opponentIsHuman = false; // if true, O is human
 
     // UI buttons
-    RectangleShape btnMinimax(Vector2f(140.f, 28.f));
+    RectangleShape btnMinimax(Vector2f(120.f, 28.f));
     btnMinimax.setPosition(10.f, 10.f);
     btnMinimax.setFillColor(Color(80,80,80));
 
-    RectangleShape btnOpponent(Vector2f(200.f, 28.f));
-    btnOpponent.setPosition(160.f, 10.f);
+    RectangleShape btnOpponent(Vector2f(160.f, 28.f));
+    btnOpponent.setPosition(140.f, 10.f);
     btnOpponent.setFillColor(Color(80,80,80));
 
     sf::Text btnMinText; btnMinText.setFont(font); btnMinText.setCharacterSize(14);
@@ -320,14 +362,24 @@ int main()
             if (currentPlayer == 'X')
             {
                 // X is always AI in this setup
+                g_nodesVisited = 0;
+                auto t0 = std::chrono::high_resolution_clock::now();
                 bestMove('X', useMinimax);
+                auto t1 = std::chrono::high_resolution_clock::now();
+                double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+                std::cout << "AI X move time: " << ms << " ms, nodes: " << g_nodesVisited << "\n";
                 Clock.restart();
             }
             else // O's turn
             {
                 if (!opponentIsHuman)
                 {
+                    g_nodesVisited = 0;
+                    auto t0 = std::chrono::high_resolution_clock::now();
                     bestMove('O', useMinimax);
+                    auto t1 = std::chrono::high_resolution_clock::now();
+                    double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+                    std::cout << "AI O move time: " << ms << " ms, nodes: " << g_nodesVisited << "\n";
                     Clock.restart();
                 }
                 // else wait for human click
