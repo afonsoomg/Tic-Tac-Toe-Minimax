@@ -127,35 +127,35 @@ int minimax(std::array<std::array<char, 3>, 3>& b, int profundidade, bool isXTur
 
     ++g_internalNodes;
 
-    std::vector<std::pair<int,int>> order = {
-        {1,1}, {0,0}, {0,2}, {2,0}, {2,2}, {0,1}, {1,0}, {1,2}, {2,1}
-    };
-
     if (isXTurn)
     {
         int bestScore = INT_MIN;
-        for (auto pos : order)
+        for (int r = 0; r < 3; ++r)
         {
-            int r = pos.first, c = pos.second;
-            if (b[r][c] != ' ') continue;
-            b[r][c] = 'X';
-            int score = minimax(b, profundidade + 1, false);
-            b[r][c] = ' ';
-            if (score > bestScore) bestScore = score;
+            for (int c = 0; c < 3; ++c)
+            {
+                if (b[r][c] != ' ') continue;
+                b[r][c] = 'X';
+                int score = minimax(b, profundidade + 1, false);
+                b[r][c] = ' ';
+                if (score > bestScore) bestScore = score;
+            }
         }
         return bestScore;
     }
     else
     {
         int bestScore = INT_MAX;
-        for (auto pos : order)
+        for (int r = 0; r < 3; ++r)
         {
-            int r = pos.first, c = pos.second;
-            if (b[r][c] != ' ') continue;
-            b[r][c] = 'O';
-            int score = minimax(b, profundidade + 1, true);
-            b[r][c] = ' ';
-            if (score < bestScore) bestScore = score;
+            for (int c = 0; c < 3; ++c)
+            {
+                if (b[r][c] != ' ') continue;
+                b[r][c] = 'O';
+                int score = minimax(b, profundidade + 1, true);
+                b[r][c] = ' ';
+                if (score < bestScore) bestScore = score;
+            }
         }
         return bestScore;
     }
@@ -164,25 +164,23 @@ int minimax(std::array<std::array<char, 3>, 3>& b, int profundidade, bool isXTur
 // Evaluate current board position for player: print per-candidate score and node counts
 void probePosition(char Player)
 {
-    std::vector<std::pair<int,int>> order = {
-        {1,1}, {0,0}, {0,2}, {2,0}, {2,2}, {0,1}, {1,0}, {1,2}, {2,1}
-    };
-
     std::cout << "--- Probe position for player " << Player << " ---\n";
-    for (auto pos : order)
+    for (int r = 0; r < 3; ++r)
     {
-        int r = pos.first, c = pos.second;
-        if (board[r][c] != ' ') continue;
-        board[r][c] = Player;
-        g_nodesVisited = 0; g_leafNodes = 0; g_internalNodes = 0;
-        int score;
-        if (Player == 'X') score = minimax(board, 1, false);
-        else score = minimax(board, 1, true);
-        uint64_t nodes = g_nodesVisited;
-        uint64_t leaves = g_leafNodes;
-        uint64_t internals = g_internalNodes;
-        board[r][c] = ' ';
-        std::cout << "Candidate ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodes<<" leaf="<<leaves<<" internal="<<internals<<"\n";
+        for (int c = 0; c < 3; ++c)
+        {
+            if (board[r][c] != ' ') continue;
+            board[r][c] = Player;
+            g_nodesVisited = 0; g_leafNodes = 0; g_internalNodes = 0;
+            int score;
+            if (Player == 'X') score = minimax(board, 1, false);
+            else score = minimax(board, 1, true);
+            uint64_t nodes = g_nodesVisited;
+            uint64_t leaves = g_leafNodes;
+            uint64_t internals = g_internalNodes;
+            board[r][c] = ' ';
+            std::cout << "Candidate ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodes<<" leaf="<<leaves<<" internal="<<internals<<"\n";
+        }
     }
     std::cout << "--- End probe ---\n";
 }
@@ -190,10 +188,6 @@ void probePosition(char Player)
 // bestMove: when calling minimax for candidate, start with depth=1 (one ply already played)
 void bestMove(char Player, bool useMinimax)
 {
-    std::vector<std::pair<int,int>> order = {
-        {1,1}, {0,0}, {0,2}, {2,0}, {2,2}, {0,1}, {1,0}, {1,2}, {2,1}
-    };
-
     std::pair<int,int> bestMovePos = {-1, -1};
 
     if (!useMinimax)
@@ -205,42 +199,46 @@ void bestMove(char Player, bool useMinimax)
     if (Player == 'X')
     {
         int bestScore = INT_MIN;
-        for (auto pos : order)
+        for (int r = 0; r < 3; ++r)
         {
-            int r = pos.first, c = pos.second;
-            if (board[r][c] != ' ') continue;
-            board[r][c] = 'X';
-            uint64_t nodesBefore = g_nodesVisited; uint64_t leavesBefore = g_leafNodes; uint64_t internBefore = g_internalNodes;
-            int score = minimax(board, 1, false);
-            uint64_t nodesAfter = g_nodesVisited; uint64_t leavesAfter = g_leafNodes; uint64_t internAfter = g_internalNodes;
-            board[r][c] = ' ';
-            uint64_t nodesThis = nodesAfter - nodesBefore;
-            std::cout << "Eval candidate X move ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodesThis<<" leaf="<<(leavesAfter-leavesBefore)<<" internal="<<(internAfter-internBefore)<<"\n";
-            if (score > bestScore)
+            for (int c = 0; c < 3; ++c)
             {
-                bestScore = score;
-                bestMovePos = {r, c};
+                if (board[r][c] != ' ') continue;
+                board[r][c] = 'X';
+                uint64_t nodesBefore = g_nodesVisited; uint64_t leavesBefore = g_leafNodes; uint64_t internBefore = g_internalNodes;
+                int score = minimax(board, 1, false);
+                uint64_t nodesAfter = g_nodesVisited; uint64_t leavesAfter = g_leafNodes; uint64_t internAfter = g_internalNodes;
+                board[r][c] = ' ';
+                uint64_t nodesThis = nodesAfter - nodesBefore;
+                std::cout << "Eval candidate X move ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodesThis<<" leaf="<<(leavesAfter-leavesBefore)<<" internal="<<(internAfter-internBefore)<<"\n";
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestMovePos = {r, c};
+                }
             }
         }
     }
     else // Player == 'O'
     {
         int bestScore = INT_MAX;
-        for (auto pos : order)
+        for (int r = 0; r < 3; ++r)
         {
-            int r = pos.first, c = pos.second;
-            if (board[r][c] != ' ') continue;
-            board[r][c] = 'O';
-            uint64_t nodesBefore = g_nodesVisited; uint64_t leavesBefore = g_leafNodes; uint64_t internBefore = g_internalNodes;
-            int score = minimax(board, 1, true);
-            uint64_t nodesAfter = g_nodesVisited; uint64_t leavesAfter = g_leafNodes; uint64_t internAfter = g_internalNodes;
-            board[r][c] = ' ';
-            uint64_t nodesThis = nodesAfter - nodesBefore;
-            std::cout << "Eval candidate O move ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodesThis<<" leaf="<<(leavesAfter-leavesBefore)<<" internal="<<(internAfter-internBefore)<<"\n";
-            if (score < bestScore)
+            for (int c = 0; c < 3; ++c)
             {
-                bestScore = score;
-                bestMovePos = {r, c};
+                if (board[r][c] != ' ') continue;
+                board[r][c] = 'O';
+                uint64_t nodesBefore = g_nodesVisited; uint64_t leavesBefore = g_leafNodes; uint64_t internBefore = g_internalNodes;
+                int score = minimax(board, 1, true);
+                uint64_t nodesAfter = g_nodesVisited; uint64_t leavesAfter = g_leafNodes; uint64_t internAfter = g_internalNodes;
+                board[r][c] = ' ';
+                uint64_t nodesThis = nodesAfter - nodesBefore;
+                std::cout << "Eval candidate O move ("<<r<<","<<c<<") score="<<score<<" nodes="<<nodesThis<<" leaf="<<(leavesAfter-leavesBefore)<<" internal="<<(internAfter-internBefore)<<"\n";
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    bestMovePos = {r, c};
+                }
             }
         }
     }
